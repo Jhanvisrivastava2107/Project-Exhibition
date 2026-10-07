@@ -1,108 +1,94 @@
 import os
 import numpy as np
-import tensorflow as tf
 from PIL import Image
 
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
-# -------------------------------
-# Settings
-# -------------------------------
+
+# -----------------------------
+# SETTINGS
+# -----------------------------
 
 DATA_DIR = "data"
+
+classes = [
+    "healthy",
+    "early_blight",
+    "late_blight",
+    "leaf_mold"
+]
+
 IMAGE_SIZE = (224, 224)
 
 
-# -------------------------------
-# Load MobileNetV2
-# -------------------------------
+# -----------------------------
+# LOAD CNN
+# -----------------------------
 
-model = tf.keras.applications.MobileNetV2(
+print("Loading MobileNetV2...")
+
+model = MobileNetV2(
     weights="imagenet",
     include_top=False,
     pooling="avg"
 )
 
-model.trainable = False
+print("MobileNetV2 loaded!")
 
 
-# -------------------------------
-# Store features and labels
-# -------------------------------
+# -----------------------------
+# EXTRACT FEATURES
+# -----------------------------
 
 features = []
 labels = []
 
-class_names = sorted(os.listdir(DATA_DIR))
+for class_index, class_name in enumerate(classes):
 
-print("Classes:", class_names)
+    folder = os.path.join(DATA_DIR, class_name)
 
+    print(f"\nReading: {class_name}")
 
-# -------------------------------
-# Process images
-# -------------------------------
+    for filename in os.listdir(folder):
 
-for label, class_name in enumerate(class_names):
-
-    class_path = os.path.join(DATA_DIR, class_name)
-
-    if not os.path.isdir(class_path):
-        continue
-
-    for filename in os.listdir(class_path):
-
-        image_path = os.path.join(
-            class_path,
-            filename
-        )
+        filepath = os.path.join(folder, filename)
 
         try:
-            image = Image.open(image_path).convert("RGB")
+
+            image = Image.open(filepath).convert("RGB")
             image = image.resize(IMAGE_SIZE)
 
             image_array = np.array(image)
+            image_array = np.expand_dims(image_array, axis=0)
 
-            image_array = np.expand_dims(
-                image_array,
-                axis=0
-            )
+            image_array = preprocess_input(image_array)
 
-            image_array = tf.keras.applications.mobilenet_v2.preprocess_input(
-                image_array
-            )
+            feature = model.predict(image_array, verbose=0)
 
-            feature = model.predict(
-                image_array,
-                verbose=0
-            )[0]
-
-            features.append(feature)
-            labels.append(label)
+            features.append(feature[0])
+            labels.append(class_index)
 
         except Exception as e:
-            print("Skipping:", image_path)
+
+            print("Skipping:", filename)
             print("Reason:", e)
 
 
-# -------------------------------
-# Convert to NumPy arrays
-# -------------------------------
+# -----------------------------
+# SAVE FEATURES
+# -----------------------------
 
 features = np.array(features)
 labels = np.array(labels)
-
 
 print("\nFinished!")
 print("Feature shape:", features.shape)
 print("Label shape:", labels.shape)
 
-
-# -------------------------------
-# Save
-# -------------------------------
-
-np.save("cnn_features.npy", features)
+np.save("features.npy", features)
 np.save("labels.npy", labels)
 
 print("\nSaved:")
-print("cnn_features.npy")
+print("features.npy")
 print("labels.npy")
