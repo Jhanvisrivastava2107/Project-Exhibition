@@ -1,0 +1,10 @@
+@"
+streamlit==1.39.0
+numpy==1.26.4
+tensorflow==2.15.1
+pennylane==0.40.0
+scikit-learn==1.5.2
+joblib==1.4.2
+matplotlib==3.9.2
+Pillow==10.4.0
+"@ | Set-Content .\requirements.txt
