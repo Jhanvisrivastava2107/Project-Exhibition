@@ -1,0 +1,31 @@
+{
+    "svm": {
+        "accuracy": 0.7641129032258065,
+        "macro_precision": 0.504237421418352,
+        "macro_recall": 0.5185185185185186,
+        "macro_f1": 0.5085681206556253,
+        "weighted_f1": 0.7704806689556769,
+        "inference_time_seconds": 0.06591070001013577
+    },
+    "vqc": {
+        "accuracy": 0.20766129032258066,
+        "macro_precision": 0.11949558307085188,
+        "macro_recall": 0.11921296296296297,
+        "macro_f1": 0.11168685043541032,
+        "weighted_f1": 0.19455128785523085,
+        "inference_time_seconds": 12.74283430003561
+    },
+    "num_test_samples": 496,
+    "num_classes": 9,
+    "class_names": [
+        "Target_spot",
+        "bacterial_spot",
+        "early_blight",
+        "healthy",
+        "late_blight",
+        "leaf_mold",
+        "septoria_leaf_spot",
+        "spider_mites",
+        "yellow_leaf_curl_virus"
+    ]
+}
