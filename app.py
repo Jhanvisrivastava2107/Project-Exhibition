@@ -6,324 +6,323 @@ import numpy as np
 import streamlit as st
 from PIL import Image
 
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+
+from quantum_model import (
+    predict_proba as quantum_predict_proba,
+    load_quantum_model
+)
+
+
+# ============================================================
+# PAGE CONFIGURATION
+# ============================================================
+
+st.set_page_config(
+    page_title="Tomato Leaf Disease Classification",
+    page_icon="🍅",
+    layout="wide"
+)
+
 
 # ============================================================
 # PATHS
 # ============================================================
 
-PROJECT_ROOT = Path(__file__).resolve().parent
-ARTIFACT_DIR = PROJECT_ROOT / "artifacts"
+BASE_DIR = Path(__file__).resolve().parent
 
-CLASS_NAMES_FILE = ARTIFACT_DIR / "class_names.json"
-SVM_FILE = ARTIFACT_DIR / "svm.joblib"
-SCALER_FILE = ARTIFACT_DIR / "scaler.joblib"
-PCA_FILE = ARTIFACT_DIR / "pca.joblib"
-QUANTUM_FILE = ARTIFACT_DIR / "quantum_model.npz"
+ARTIFACT_DIR = BASE_DIR / "artifacts"
+FEATURE_DIR = BASE_DIR / "features"
 
 
-# ============================================================
-# PAGE CONFIG
-# ============================================================
+CLASS_NAMES_PATH = (
+    ARTIFACT_DIR / "class_names.json"
+)
 
-st.set_page_config(
-    page_title="Quantum Plant Disease Detector",
-    page_icon="🌿",
-    layout="centered",
+SCALER_PATH = (
+    ARTIFACT_DIR / "scaler.joblib"
+)
+
+PCA_PATH = (
+    ARTIFACT_DIR / "pca.joblib"
+)
+
+SVM_PATH = (
+    ARTIFACT_DIR / "svm.joblib"
+)
+
+QUANTUM_MODEL_PATH = (
+    ARTIFACT_DIR / "quantum_model.npz"
 )
 
 
 # ============================================================
-# UI
+# CHECK REQUIRED FILES
 # ============================================================
 
-st.title("🌿 Quantum-Based Plant Disease Detector")
+required_files = [
+    CLASS_NAMES_PATH,
+    SCALER_PATH,
+    PCA_PATH,
+    SVM_PATH,
+    QUANTUM_MODEL_PATH
+]
 
-st.write(
-    "Hybrid classical-quantum classification "
-    "of tomato leaf diseases."
-)
+missing_files = [
+    str(path)
+    for path in required_files
+    if not path.exists()
+]
 
+if missing_files:
 
-# ============================================================
-# CLASS NAMES
-# ============================================================
-
-@st.cache_data
-def load_class_names():
-    with open(CLASS_NAMES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-class_names = load_class_names()
-
-
-# ============================================================
-# MOBILENETV2
-# ============================================================
-
-@st.cache_resource
-def load_feature_extractor():
-
-    import tensorflow as tf
-    from tensorflow.keras.applications import MobileNetV2
-
-    model = MobileNetV2(
-        weights="imagenet",
-        include_top=False,
-        pooling="avg",
-        input_shape=(224, 224, 3),
+    st.error(
+        "The following required files are missing:"
     )
 
-    model.trainable = False
-
-    return model
-
-
-# ============================================================
-# CLASSICAL MODELS
-# ============================================================
-
-@st.cache_resource
-def load_classical_models():
-
-    scaler = joblib.load(SCALER_FILE)
-    pca = joblib.load(PCA_FILE)
-    svm = joblib.load(SVM_FILE)
-
-    return scaler, pca, svm
-
-
-# ============================================================
-# QUANTUM MODEL
-# ============================================================
-
-@st.cache_resource
-def load_vqc():
-
-    from quantum_model import load_quantum_model
-
-    return load_quantum_model(QUANTUM_FILE)
-
-
-# ============================================================
-# IMAGE UPLOAD
-# ============================================================
-
-uploaded_file = st.file_uploader(
-    "Upload a tomato leaf image",
-    type=["jpg", "jpeg", "png"],
-)
-
-
-# ============================================================
-# WAIT FOR IMAGE
-# ============================================================
-
-if uploaded_file is None:
-
-    st.info(
-        "👆 Upload a tomato leaf image to start prediction."
-    )
-
-    st.divider()
-
-    st.subheader("Model Information")
-
-    st.write(f"Number of classes: {len(class_names)}")
-    st.write("Feature extractor: MobileNetV2")
-    st.write("PCA components: 8")
-    st.write("Quantum qubits: 8")
-    st.write("Quantum layers: 2")
-    st.write("Classical baseline: RBF SVM")
+    for file in missing_files:
+        st.write(f"- {file}")
 
     st.stop()
 
 
 # ============================================================
-# DISPLAY IMAGE
+# LOAD CLASS NAMES
 # ============================================================
 
-image = Image.open(uploaded_file).convert("RGB")
+with open(
+    CLASS_NAMES_PATH,
+    "r"
+) as file:
 
-st.image(
-    image,
-    caption="Uploaded leaf image",
-    use_container_width=True,
-)
-
-
-# ============================================================
-# LOAD MODELS ONLY NOW
-# ============================================================
-
-with st.spinner("Loading AI models..."):
-
-    feature_extractor = load_feature_extractor()
-
-    scaler, pca, svm_model = load_classical_models()
-
-    quantum_weights, readout_weights, bias = load_vqc()
-
-
-# ============================================================
-# PREPROCESS IMAGE
-# ============================================================
-
-with st.spinner("Analyzing leaf image..."):
-
-    from tensorflow.keras.applications.mobilenet_v2 import (
-        preprocess_input,
-    )
-
-    resized_image = image.resize((224, 224))
-
-    image_array = np.asarray(
-        resized_image,
-        dtype=np.float32,
-    )
-
-    image_array = np.expand_dims(
-        image_array,
-        axis=0,
-    )
-
-    image_array = preprocess_input(image_array)
-
-
-    # ========================================================
-    # MOBILENET FEATURES
-    # ========================================================
-
-    features = feature_extractor.predict(
-        image_array,
-        verbose=0,
+    class_names = json.load(
+        file
     )
 
 
-    # ========================================================
-    # SCALER
-    # ========================================================
+# ============================================================
+# LOAD MODELS
+# ============================================================
 
-    scaled_features = scaler.transform(features)
+@st.cache_resource
+def load_models():
+
+    # --------------------------------------------------------
+    # MobileNetV2 feature extractor
+    # --------------------------------------------------------
+
+    feature_extractor = MobileNetV2(
+        weights="imagenet",
+        include_top=False,
+        pooling="avg",
+        input_shape=(
+            224,
+            224,
+            3
+        )
+    )
+
+    feature_extractor.trainable = False
 
 
-    # ========================================================
-    # PCA
-    # ========================================================
+    # --------------------------------------------------------
+    # Classical preprocessing
+    # --------------------------------------------------------
 
-    pca_features = pca.transform(
-        scaled_features,
+    scaler = joblib.load(
+        SCALER_PATH
+    )
+
+    pca = joblib.load(
+        PCA_PATH
     )
 
 
-    # ========================================================
+    # --------------------------------------------------------
     # SVM
-    # ========================================================
+    # --------------------------------------------------------
 
-    svm_probabilities = svm_model.predict_proba(
-        pca_features
-    )[0]
-
-    svm_prediction = int(
-        np.argmax(svm_probabilities)
+    svm_model = joblib.load(
+        SVM_PATH
     )
 
 
-    # ========================================================
+    # --------------------------------------------------------
     # VQC
-    # ========================================================
+    # --------------------------------------------------------
 
-    from quantum_model import predict_proba as quantum_predict_proba
-
-    vqc_probabilities = quantum_predict_proba(
-        pca_features,
+    (
         quantum_weights,
         readout_weights,
-        bias,
-    )[0]
+        bias
+    ) = load_quantum_model(
+        QUANTUM_MODEL_PATH
+    )
+
+
+    return (
+        feature_extractor,
+        scaler,
+        pca,
+        svm_model,
+        quantum_weights,
+        readout_weights,
+        bias
+    )
+
+
+(
+    feature_extractor,
+    scaler,
+    pca,
+    svm_model,
+    quantum_weights,
+    readout_weights,
+    bias
+) = load_models()
+
+
+# ============================================================
+# FEATURE EXTRACTION
+# ============================================================
+
+def extract_features(
+    image
+):
+
+    # Convert to RGB
+    image = image.convert(
+        "RGB"
+    )
+
+    # Resize
+    image = image.resize(
+        (224, 224)
+    )
+
+    # Convert to numpy array
+    image_array = np.asarray(
+        image,
+        dtype=np.float32
+    )
+
+    # Add batch dimension
+    image_array = np.expand_dims(
+        image_array,
+        axis=0
+    )
+
+    # MobileNetV2 preprocessing
+    image_array = preprocess_input(
+        image_array
+    )
+
+    # Extract 1280-dimensional features
+    features = feature_extractor.predict(
+        image_array,
+        verbose=0
+    )
+
+    return features
+
+
+# ============================================================
+# CLASSICAL + QUANTUM PREDICTION
+# ============================================================
+
+def predict_image(
+    image
+):
+
+    # --------------------------------------------------------
+    # MobileNetV2
+    # --------------------------------------------------------
+
+    features = extract_features(
+        image
+    )
+
+
+    # --------------------------------------------------------
+    # StandardScaler
+    # --------------------------------------------------------
+
+    scaled_features = scaler.transform(
+        features
+    )
+
+
+    # --------------------------------------------------------
+    # PCA
+    # --------------------------------------------------------
+
+    pca_features = pca.transform(
+        scaled_features
+    )
+
+
+    # --------------------------------------------------------
+    # SVM
+    # --------------------------------------------------------
+
+    svm_probabilities = (
+        svm_model.predict_proba(
+            pca_features
+        )[0]
+    )
+
+    svm_prediction = int(
+        np.argmax(
+            svm_probabilities
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # VQC
+    # --------------------------------------------------------
+
+    vqc_probabilities = (
+        quantum_predict_proba(
+            pca_features,
+            quantum_weights,
+            readout_weights,
+            bias
+        )[0]
+    )
 
     vqc_prediction = int(
-        np.argmax(vqc_probabilities)
+        np.argmax(
+            vqc_probabilities
+        )
+    )
+
+
+    return (
+        svm_prediction,
+        svm_probabilities,
+        vqc_prediction,
+        vqc_probabilities
     )
 
 
 # ============================================================
-# RESULTS
+# HEADER
 # ============================================================
 
-st.divider()
-
-st.subheader("Prediction Results")
-
-
-# ============================================================
-# SVM RESULT
-# ============================================================
-
-st.markdown("### Classical SVM")
-
-st.success(
-    f"Prediction: **{class_names[svm_prediction]}**"
+st.title(
+    "🍅 Tomato Leaf Disease Classification"
 )
 
+st.markdown(
+    """
+### Classical SVM vs Variational Quantum Classifier
 
-# ============================================================
-# VQC RESULT
-# ============================================================
-
-st.markdown("### Variational Quantum Classifier")
-
-st.success(
-    f"Prediction: **{class_names[vqc_prediction]}**"
+Upload a tomato leaf image to compare predictions
+from the classical SVM and the simulated quantum VQC.
+"""
 )
-
-
-# ============================================================
-# TOP 3 SVM
-# ============================================================
-
-st.subheader("SVM Top 3 Predictions")
-
-svm_top3 = np.argsort(
-    svm_probabilities
-)[::-1][:3]
-
-for index in svm_top3:
-
-    probability = float(
-        svm_probabilities[index]
-    )
-
-    st.write(
-        f"**{class_names[index]}**: "
-        f"{probability * 100:.2f}%"
-    )
-
-    st.progress(probability)
-
-
-# ============================================================
-# TOP 3 VQC
-# ============================================================
-
-st.subheader("VQC Top 3 Predictions")
-
-vqc_top3 = np.argsort(
-    vqc_probabilities
-)[::-1][:3]
-
-for index in vqc_top3:
-
-    probability = float(
-        vqc_probabilities[index]
-    )
-
-    st.write(
-        f"**{class_names[index]}**: "
-        f"{probability * 100:.2f}%"
-    )
-
-    st.progress(probability)
 
 
 # ============================================================
@@ -332,28 +331,376 @@ for index in vqc_top3:
 
 with st.sidebar:
 
-    st.header("Model Information")
-
-    st.write(
-        f"Number of classes: {len(class_names)}"
+    st.header(
+        "Project Information"
     )
 
     st.write(
-        "Feature extractor: MobileNetV2"
+        "**Dataset:** Tomato Leaf Disease"
     )
 
     st.write(
-        "PCA components: 8"
+        "**Number of classes:** 9"
     )
 
     st.write(
-        "Quantum qubits: 8"
+        "**Test images:** 900"
     )
 
     st.write(
-        "Quantum layers: 2"
+        "**Images per class:** 100"
+    )
+
+    st.divider()
+
+    st.subheader(
+        "Feature Pipeline"
     )
 
     st.write(
-        "Classical baseline: RBF SVM"
+        "MobileNetV2"
     )
+
+    st.write(
+        "↓"
+    )
+
+    st.write(
+        "StandardScaler"
+    )
+
+    st.write(
+        "↓"
+    )
+
+    st.write(
+        "PCA → 8 features"
+    )
+
+    st.divider()
+
+    st.subheader(
+        "Classical Model"
+    )
+
+    st.write(
+        "RBF SVM"
+    )
+
+    st.write(
+        "**Test Accuracy: 72.11%**"
+    )
+
+    st.divider()
+
+    st.subheader(
+        "Quantum Model"
+    )
+
+    st.write(
+        "8-qubit VQC"
+    )
+
+    st.write(
+        "2 quantum layers"
+    )
+
+    st.write(
+        "**Test Accuracy: 9.11%**"
+    )
+
+    st.caption(
+        "The VQC is simulated using a classical "
+        "quantum simulator."
+    )
+
+
+# ============================================================
+# UPLOAD IMAGE
+# ============================================================
+
+uploaded_file = st.file_uploader(
+    "Upload a tomato leaf image",
+    type=[
+        "jpg",
+        "jpeg",
+        "png"
+    ]
+)
+
+
+# ============================================================
+# PREDICTION
+# ============================================================
+
+if uploaded_file is not None:
+
+    image = Image.open(
+        uploaded_file
+    ).convert(
+        "RGB"
+    )
+
+
+    # --------------------------------------------------------
+    # Display image
+    # --------------------------------------------------------
+
+    st.subheader(
+        "Uploaded Image"
+    )
+
+    st.image(
+        image,
+        width=400
+    )
+
+
+    # --------------------------------------------------------
+    # Run models
+    # --------------------------------------------------------
+
+    with st.spinner(
+        "Running SVM and VQC predictions..."
+    ):
+
+        (
+            svm_prediction,
+            svm_probabilities,
+            vqc_prediction,
+            vqc_probabilities
+        ) = predict_image(
+            image
+        )
+
+
+    # --------------------------------------------------------
+    # Predictions
+    # --------------------------------------------------------
+
+    svm_class = class_names[
+        svm_prediction
+    ]
+
+    vqc_class = class_names[
+        vqc_prediction
+    ]
+
+    svm_probability = (
+        svm_probabilities[
+            svm_prediction
+        ]
+    )
+
+    vqc_probability = (
+        vqc_probabilities[
+            vqc_prediction
+        ]
+    )
+
+
+    # ========================================================
+    # MAIN RESULTS
+    # ========================================================
+
+    st.divider()
+
+    st.header(
+        "Prediction Results"
+    )
+
+
+    col1, col2 = st.columns(
+        2
+    )
+
+
+    # --------------------------------------------------------
+    # SVM RESULT
+    # --------------------------------------------------------
+
+    with col1:
+
+        st.subheader(
+            "🔵 Classical SVM"
+        )
+
+        st.success(
+            svm_class
+        )
+
+        st.metric(
+            "Predicted probability",
+            f"{svm_probability * 100:.2f}%"
+        )
+
+        st.caption(
+            "Test accuracy: 72.11%"
+        )
+
+
+    # --------------------------------------------------------
+    # VQC RESULT
+    # --------------------------------------------------------
+
+    with col2:
+
+        st.subheader(
+            "🟣 Quantum VQC"
+        )
+
+        st.info(
+            vqc_class
+        )
+
+        st.metric(
+            "Predicted probability",
+            f"{vqc_probability * 100:.2f}%"
+        )
+
+        st.caption(
+            "Test accuracy: 9.11%"
+        )
+
+
+    # ========================================================
+    # AGREEMENT
+    # ========================================================
+
+    st.divider()
+
+    st.header(
+        "Model Comparison"
+    )
+
+    if svm_prediction == vqc_prediction:
+
+        st.success(
+            "✓ Both models predicted the same class."
+        )
+
+    else:
+
+        st.warning(
+            "⚠ The models predicted different classes."
+        )
+
+
+    # ========================================================
+    # TOP-3 PREDICTIONS
+    # ========================================================
+
+    st.divider()
+
+    st.header(
+        "Top-3 Predictions"
+    )
+
+
+    col1, col2 = st.columns(
+        2
+    )
+
+
+    # --------------------------------------------------------
+    # SVM TOP 3
+    # --------------------------------------------------------
+
+    with col1:
+
+        st.subheader(
+            "SVM"
+        )
+
+        svm_top3 = np.argsort(
+            svm_probabilities
+        )[::-1][:3]
+
+        for rank, index in enumerate(
+            svm_top3,
+            start=1
+        ):
+
+            st.write(
+                f"**{rank}. "
+                f"{class_names[index]}** — "
+                f"{svm_probabilities[index] * 100:.2f}%"
+            )
+
+
+    # --------------------------------------------------------
+    # VQC TOP 3
+    # --------------------------------------------------------
+
+    with col2:
+
+        st.subheader(
+            "VQC"
+        )
+
+        vqc_top3 = np.argsort(
+            vqc_probabilities
+        )[::-1][:3]
+
+        for rank, index in enumerate(
+            vqc_top3,
+            start=1
+        ):
+
+            st.write(
+                f"**{rank}. "
+                f"{class_names[index]}** — "
+                f"{vqc_probabilities[index] * 100:.2f}%"
+            )
+
+
+    # ========================================================
+    # TECHNICAL DETAILS
+    # ========================================================
+
+    st.divider()
+
+    with st.expander(
+        "Technical Details"
+    ):
+
+        st.write(
+            "**Input image:** 224 × 224 RGB"
+        )
+
+        st.write(
+            "**Feature extractor:** MobileNetV2"
+        )
+
+        st.write(
+            "**CNN features:** 1280"
+        )
+
+        st.write(
+            "**StandardScaler:** Applied"
+        )
+
+        st.write(
+            "**PCA components:** 8"
+        )
+
+        st.write(
+            "**SVM kernel:** RBF"
+        )
+
+        st.write(
+            "**VQC qubits:** 8"
+        )
+
+        st.write(
+            "**VQC layers:** 2"
+        )
+
+        st.write(
+            "**VQC classes:** 9"
+        )
+
+        st.write(
+            "**Quantum backend:** PennyLane "
+            "`default.qubit` simulator"
+        )

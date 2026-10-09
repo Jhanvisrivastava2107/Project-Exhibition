@@ -1,21 +1,21 @@
 {
     "svm": {
-        "accuracy": 0.7641129032258065,
-        "macro_precision": 0.504237421418352,
-        "macro_recall": 0.5185185185185186,
-        "macro_f1": 0.5085681206556253,
-        "weighted_f1": 0.7704806689556769,
-        "inference_time_seconds": 0.06591070001013577
+        "accuracy": 0.7211111111111111,
+        "macro_precision": 0.7251933659080486,
+        "macro_recall": 0.7211111111111111,
+        "macro_f1": 0.7224210916856596,
+        "weighted_f1": 0.7224210916856596,
+        "inference_time_seconds": 0.28373189992271364
     },
     "vqc": {
-        "accuracy": 0.20766129032258066,
-        "macro_precision": 0.11949558307085188,
-        "macro_recall": 0.11921296296296297,
-        "macro_f1": 0.11168685043541032,
-        "weighted_f1": 0.19455128785523085,
-        "inference_time_seconds": 12.74283430003561
+        "accuracy": 0.09111111111111111,
+        "macro_precision": 0.09009435736194686,
+        "macro_recall": 0.09111111111111111,
+        "macro_f1": 0.062290048582354346,
+        "weighted_f1": 0.062290048582354346,
+        "inference_time_seconds": 33.01084670005366
     },
-    "num_test_samples": 496,
+    "num_test_samples": 900,
     "num_classes": 9,
     "class_names": [
         "Target_spot",

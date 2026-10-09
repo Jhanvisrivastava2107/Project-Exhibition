@@ -17,11 +17,10 @@ NUM_CLASSES = 9
 
 TEST_SIZE = 0.20
 
-# This file is directly inside:
-# C:\Users\Sanjeev\Desktop\project exhibition\prepare_data.py
-#
-# Therefore Path(__file__).resolve().parent gives:
-# C:\Users\Sanjeev\Desktop\project exhibition
+
+# ============================================================
+# PATHS
+# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 
@@ -46,17 +45,17 @@ IMAGE_EXTENSIONS = {
 
 
 # ============================================================
-# CREATE REQUIRED DIRECTORIES
+# CREATE DIRECTORIES
 # ============================================================
 
 SPLIT_DATA_DIR.mkdir(
     parents=True,
-    exist_ok=True,
+    exist_ok=True
 )
 
 ARTIFACT_DIR.mkdir(
     parents=True,
-    exist_ok=True,
+    exist_ok=True
 )
 
 
@@ -85,16 +84,10 @@ def get_classes():
     if not RAW_DATA_DIR.exists():
 
         raise FileNotFoundError(
-            "\nRaw dataset directory was not found.\n\n"
-            f"Expected location:\n"
+            f"\nRaw dataset directory not found:\n"
             f"{RAW_DATA_DIR}\n\n"
-            "Please create this folder and put your "
-            "9 disease-class folders inside it.\n\n"
-            "Example:\n"
-            f"{RAW_DATA_DIR}\\Class1\n"
-            f"{RAW_DATA_DIR}\\Class2\n"
-            f"...\n"
-            f"{RAW_DATA_DIR}\\Class9\n"
+            "Expected structure:\n"
+            "data\\raw\\class_name\\image.jpg"
         )
 
     classes = sorted(
@@ -108,12 +101,11 @@ def get_classes():
     if len(classes) != NUM_CLASSES:
 
         raise ValueError(
-            "\nExpected exactly "
-            f"{NUM_CLASSES} classes, "
+            f"\nExpected exactly {NUM_CLASSES} classes, "
             f"but found {len(classes)}.\n\n"
-            "Detected folders:\n"
+            "Detected classes:\n"
             + "\n".join(
-                f"  {i + 1}. {name}"
+                f"  {i}: {name}"
                 for i, name in enumerate(classes)
             )
         )
@@ -148,33 +140,70 @@ def get_images(class_dir):
 
 def reset_split_directories():
 
-    if TRAIN_DIR.exists():
+    if SPLIT_DATA_DIR.exists():
 
         print(
-            f"\nRemoving old train directory:\n"
-            f"{TRAIN_DIR}"
+            "\nRemoving old split dataset..."
         )
 
-        shutil.rmtree(TRAIN_DIR)
-
-    if TEST_DIR.exists():
-
-        print(
-            f"\nRemoving old test directory:\n"
-            f"{TEST_DIR}"
+        shutil.rmtree(
+            SPLIT_DATA_DIR
         )
-
-        shutil.rmtree(TEST_DIR)
 
     TRAIN_DIR.mkdir(
         parents=True,
-        exist_ok=True,
+        exist_ok=True
     )
 
     TEST_DIR.mkdir(
         parents=True,
-        exist_ok=True,
+        exist_ok=True
     )
+
+
+# ============================================================
+# COPY IMAGE WITH UNIQUE NAME
+# ============================================================
+
+def copy_images(
+    image_paths,
+    destination_dir,
+    prefix
+):
+
+    destination_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    for index, image_path in enumerate(
+        image_paths,
+        start=1
+    ):
+
+        # ----------------------------------------------------
+        # IMPORTANT:
+        #
+        # We deliberately add an index to every filename.
+        #
+        # This prevents files with identical filenames
+        # from different raw subfolders overwriting each other.
+        # ----------------------------------------------------
+
+        new_filename = (
+            f"{prefix}_{index:04d}_"
+            f"{image_path.name}"
+        )
+
+        destination = (
+            destination_dir
+            / new_filename
+        )
+
+        shutil.copy2(
+            image_path,
+            destination
+        )
 
 
 # ============================================================
@@ -200,7 +229,7 @@ def main():
     )
 
     # --------------------------------------------------------
-    # Find classes
+    # FIND CLASSES
     # --------------------------------------------------------
 
     classes = get_classes()
@@ -210,20 +239,22 @@ def main():
         f"{len(classes)} classes:"
     )
 
-    for index, class_name in enumerate(classes):
+    for index, class_name in enumerate(
+        classes
+    ):
 
         print(
             f"  {index}: {class_name}"
         )
 
     # --------------------------------------------------------
-    # Reset split directories
+    # RESET SPLIT
     # --------------------------------------------------------
 
     reset_split_directories()
 
     # --------------------------------------------------------
-    # Split each class
+    # SPLIT DATA
     # --------------------------------------------------------
 
     total_images = 0
@@ -232,84 +263,99 @@ def main():
 
     total_test = 0
 
-    for class_name in classes:
+    print(
+        "\n" + "=" * 70
+    )
+
+    print(
+        "CREATING TRAIN / TEST SPLIT"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    for class_index, class_name in enumerate(
+        classes
+    ):
 
         source_dir = (
-            RAW_DATA_DIR / class_name
+            RAW_DATA_DIR
+            / class_name
         )
 
         images = get_images(
             source_dir
         )
 
-        if len(images) < 2:
+        # ----------------------------------------------------
+        # VERIFY RAW COUNT
+        # ----------------------------------------------------
+
+        print(
+            f"\nClass: {class_name}"
+        )
+
+        print(
+            f"Raw images: {len(images)}"
+        )
+
+        if len(images) == 0:
 
             raise ValueError(
-                f"\nClass '{class_name}' "
-                "contains fewer than 2 images."
+                f"Class '{class_name}' "
+                "contains no images."
             )
+
+        # ----------------------------------------------------
+        # TRAIN / TEST SPLIT
+        # ----------------------------------------------------
 
         train_images, test_images = (
             train_test_split(
                 images,
                 test_size=TEST_SIZE,
                 random_state=SEED,
-                shuffle=True,
+                shuffle=True
             )
         )
 
+        # ----------------------------------------------------
+        # DESTINATION DIRECTORIES
+        # ----------------------------------------------------
+
         train_class_dir = (
-            TRAIN_DIR / class_name
+            TRAIN_DIR
+            / class_name
         )
 
         test_class_dir = (
-            TEST_DIR / class_name
-        )
-
-        train_class_dir.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        test_class_dir.mkdir(
-            parents=True,
-            exist_ok=True,
+            TEST_DIR
+            / class_name
         )
 
         # ----------------------------------------------------
-        # Copy training images
+        # COPY TRAINING IMAGES
         # ----------------------------------------------------
 
-        for image_path in train_images:
-
-            destination = (
-                train_class_dir
-                / image_path.name
-            )
-
-            shutil.copy2(
-                image_path,
-                destination,
-            )
+        copy_images(
+            train_images,
+            train_class_dir,
+            f"class{class_index}_train"
+        )
 
         # ----------------------------------------------------
-        # Copy testing images
+        # COPY TESTING IMAGES
         # ----------------------------------------------------
 
-        for image_path in test_images:
-
-            destination = (
-                test_class_dir
-                / image_path.name
-            )
-
-            shutil.copy2(
-                image_path,
-                destination,
-            )
+        copy_images(
+            test_images,
+            test_class_dir,
+            f"class{class_index}_test"
+        )
 
         # ----------------------------------------------------
-        # Statistics
+        # COUNTS
         # ----------------------------------------------------
 
         total = len(images)
@@ -328,27 +374,32 @@ def main():
 
         total_test += test_count
 
-        print("\n" + "-" * 60)
-
         print(
-            f"Class: {class_name}"
+            f"Train images: {train_count}"
         )
 
         print(
-            f"Total : {total}"
+            f"Test images : {test_count}"
         )
 
-        print(
-            f"Train : {train_count}"
-        )
+        # ----------------------------------------------------
+        # SAFETY CHECK
+        # ----------------------------------------------------
 
-        print(
-            f"Test  : {test_count}"
-        )
+        if (
+            train_count
+            + test_count
+            != total
+        ):
 
-    # --------------------------------------------------------
-    # Save class names
-    # --------------------------------------------------------
+            raise RuntimeError(
+                f"Split count mismatch "
+                f"for class '{class_name}'."
+            )
+
+    # ========================================================
+    # SAVE CLASS NAMES
+    # ========================================================
 
     class_names_path = (
         ARTIFACT_DIR
@@ -358,52 +409,114 @@ def main():
     with open(
         class_names_path,
         "w",
-        encoding="utf-8",
+        encoding="utf-8"
     ) as file:
 
         json.dump(
             classes,
             file,
             indent=4,
-            ensure_ascii=False,
+            ensure_ascii=False
         )
 
-    # --------------------------------------------------------
-    # Final output
-    # --------------------------------------------------------
-
-    print("\n" + "=" * 70)
-    print("DATA PREPARATION COMPLETE")
-    print("=" * 70)
+    # ========================================================
+    # FINAL VERIFICATION
+    # ========================================================
 
     print(
-        f"\nTotal images : {total_images}"
+        "\n" + "=" * 70
     )
 
     print(
-        f"Training     : {total_train}"
+        "VERIFYING SPLIT DATASET"
     )
 
     print(
-        f"Testing      : {total_test}"
+        "=" * 70
+    )
+
+    for class_name in classes:
+
+        train_count = len(
+            get_images(
+                TRAIN_DIR / class_name
+            )
+        )
+
+        test_count = len(
+            get_images(
+                TEST_DIR / class_name
+            )
+        )
+
+        print(
+            f"{class_name:30s}"
+            f" Train: {train_count:4d}"
+            f" | Test: {test_count:4d}"
+        )
+
+        if train_count + test_count == 0:
+
+            raise RuntimeError(
+                f"No images found after "
+                f"splitting class '{class_name}'."
+            )
+
+    # ========================================================
+    # FINAL OUTPUT
+    # ========================================================
+
+    print(
+        "\n" + "=" * 70
     )
 
     print(
-        f"\nTrain directory:\n"
-        f"{TRAIN_DIR}"
+        "DATA PREPARATION COMPLETE"
     )
 
     print(
-        f"\nTest directory:\n"
-        f"{TEST_DIR}"
+        "=" * 70
     )
 
     print(
-        f"\nClass names saved to:\n"
-        f"{class_names_path}"
+        f"\nTotal raw images : {total_images}"
     )
 
-    print("\nClass mapping:")
+    print(
+        f"Total train      : {total_train}"
+    )
+
+    print(
+        f"Total test       : {total_test}"
+    )
+
+    print(
+        f"\nTrain directory:"
+    )
+
+    print(
+        TRAIN_DIR
+    )
+
+    print(
+        f"\nTest directory:"
+    )
+
+    print(
+        TEST_DIR
+    )
+
+    print(
+        f"\nClass names:"
+    )
+
+    print(
+        class_names_path
+    )
+
+    print(
+        "\nClass mapping:"
+    )
 
     for index, class_name in enumerate(
         classes
@@ -413,8 +526,14 @@ def main():
             f"  {index} -> {class_name}"
         )
 
-    print("\n" + "=" * 70)
+    print(
+        "\n" + "=" * 70
+    )
 
+
+# ============================================================
+# RUN
+# ============================================================
 
 if __name__ == "__main__":
 
