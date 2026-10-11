@@ -9,7 +9,7 @@ import pennylane as qml
 # ============================================================
 
 N_QUBITS = 8
-N_LAYERS = 3
+N_LAYERS = 2
 NUM_CLASSES = 9
 
 
@@ -110,7 +110,7 @@ def to_angles(X):
         dtype=np.float64
     )
 
-    return np.tanh(X) * np.pi
+    return 2.0 * np.arctan(X)
 
 
 # ============================================================

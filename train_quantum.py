@@ -40,15 +40,15 @@ HISTORY_PATH = ARTIFACT_DIR / "quantum_training_history.json"
 
 RANDOM_SEED = 42
 
-LEARNING_RATE = 0.01
+LEARNING_RATE = 0.005
 
-EPOCHS = 60
+EPOCHS = 30
 
 BATCH_SIZE = 16
 
 VALIDATION_SIZE = 0.15
 
-PATIENCE = 10
+PATIENCE = 7
 
 
 # ============================================================
